@@ -1,0 +1,17 @@
+{
+  "name": "bunbuster",
+  "description": "Ridiculously fast web & TCP fuzzer designed for brute-forcing directories, subdomains, and files on web servers.",
+  "module": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "bun run ./src/index.js",
+    "build": "bun run ./build.js"
+  },
+  "dependencies": {
+    "ansis": "^3.3.2",
+    "commander": "^12.1.0"
+  },
+  "bin": {
+    "bunbuster": "src/index.js"
+  }
+}
