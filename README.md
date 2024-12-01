@@ -108,6 +108,13 @@ bunbuster https://api.example.com/FUZZ \
   -o '{"headers": {"Authorization": "Bearer TOKEN"}}'
 ```
 
+### Verbose logging
+```bash
+bunbuster https://api.example.com/FUZZ \
+  -w ./wordlists/all.txt \
+  --verbose
+```
+
 ## Roadmap
 These features aren't currently implemented but they might be comming soon.
 * Different wordlists that match to different keywords, e.g.
@@ -117,7 +124,6 @@ bunbuster https://$FUZZ1.example.com/$FUZZ2 -w "./wordlists/subdomains.txt, ./wo
 
 * Ability to use with `bunx`
 
-## Verbose logging
 
 ## Notes
 
