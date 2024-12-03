@@ -97,6 +97,11 @@ bunbuster http://ffuf.test/cd/rate/FUZZ -w ./wordlists/common.txt
 # note that -rpm is not set
 ```
 
+### Proxying
+```bash
+bunbuster http://ffuf.test/cd/rate/FUZZ --proxy https://username:password@proxy.example.com:8080
+```
+
 ### Subdomain Discovery
 ```bash
 bunbuster https://FUZZ.example.com -w ./wordlists/subdomains.txt
