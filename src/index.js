@@ -34,6 +34,7 @@ let wordlistPath,
   tcp,
   retries = 4,
   timeout = 5000,
+  proxy,
   spoofip = false,
   progress = 0,
   resultsCount = 0,
@@ -295,6 +296,10 @@ program
     "uses Bun's verbose HTTP request logging, useful for debugging"
   )
   .option(
+    "--proxy <proxy>",
+    "uses a proxy"
+  )
+  .option(
     "--spoofip",
     "sets X-Forwarded-For and X-Real-IP headers with a random fake IP"
   )
@@ -320,6 +325,7 @@ program
     timeout = parseInt(options.timeout, 10);
     retries = parseInt(options.retries, 10);
     tcp = options.tcp && parseInt(options.tcp, 10);
+    proxy = options.proxy;
 
     if (!url?.trim()) {
       program.help();
@@ -339,6 +345,9 @@ program
     ) {
       program.error("TCP port must be between 1 and 65535");
     }
+    if (proxy && !URL.canParse(proxy)) {
+      program.error("Invalid proxy URL");
+    }
 
     if (outputFile) {
       await fs.writeFile(outputFile, "code,url,size");
@@ -351,6 +360,9 @@ program
     }
     if (options.verbose) {
       opts.verbose = true;
+    }
+    if (options.proxy) {
+      opts.proxy = options.proxy;
     }
 
     if (
