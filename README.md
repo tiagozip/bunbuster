@@ -66,6 +66,7 @@ Clone the repo, `bun install` and then `bun run build`
 bunbuster <url> [options]
 ```
 
+Use `FUZZ` as the placeholder for fuzzing. This is in order to make it easier to use with other tools like ffuf.    
 Run `bunbuster --help` to see all of the available arguments and options.
 
 ## Examples
@@ -130,3 +131,4 @@ bunbuster https://$FUZZ1.example.com/$FUZZ2 -w "./wordlists/subdomains.txt, ./wo
 - If you don't know how to use this, copy this file and give it to ChatGPT. It will tell you everything you need to know. Don't open an issue.
 - Be mindful of potential IP blocking. BunBuster currently does not have support for Tor, but you can set up a VPN and it should use it too.
 - As always, use this responsibly and only on systems you have explicit permission to test BunBuster is intended for security research and authorized penetration testing. Always obtain proper authorization before scanning or testing any system you do not own or have explicit permission to test.
+- I know that the bundle size might be pretty big, but that's a Bun problem since it embeds its binary directly into the executable. But it's still under 95mb, so prob not a problem for most people.
