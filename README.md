@@ -25,7 +25,7 @@ Clone the repo, `bun install` and then `bun run build`
 - **Super fast**:
   - Optimized for speed, multi-threaded by default.
   - Built with Bun
-  - 3.5% faster than ffuf
+  - 3.5x faster than ffuf
 - **Extensible**:
   - Fully-fledged TCP support
   - Fuzz by path, subdomains, parameters, request body, headers and more
