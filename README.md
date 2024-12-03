@@ -1,7 +1,7 @@
 # BunBuster
 ## Ridiculously fast web & TCP fuzzer designed for brute-forcing directories, subdomains, and files on web servers.
 
-Up to **3.5%** faster than ffuf and fully built with Bun.
+Up to **3.5x** faster than ffuf and fully built with Bun.
 
 ![Screenshot of a BunBuster scan's result, finding 2 paths on a test server](./assets/screenshot.png)
 ![Screenshot of a BunBuster scan in progress](./assets/screenshot-loader.png)
