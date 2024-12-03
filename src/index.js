@@ -324,7 +324,7 @@ program
     if (!url?.trim()) {
       program.help();
     }
-    if (!url.startsWith("http://") && !url.startsWith("https://") && !tcp) {
+    if (!tcp && !url.startsWith("http://") && !url.startsWith("https://")) { 
       program.error("Target URL must use http or https when using HTTP mode");
     }
     if (!URL.canParse(url) && !tcp) {
