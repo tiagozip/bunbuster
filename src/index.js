@@ -5,6 +5,9 @@ import { Worker } from "worker_threads";
 import fs from "fs/promises";
 import os from "os";
 
+const __VERSION = "v0.0.4";
+const __REPO = "https://github.com/tiagorangel1/bunbuster";
+
 if (!process.versions.bun) {
   console.log(
     ansis.yellow("warn") +
@@ -112,13 +115,6 @@ function createWorker(url, words) {
       }
       if (result.type === "progress") {
         updateBar(result.count);
-        return;
-      }
-
-      if (result.type === "timeout") {
-        clearLine();
-        process.stdout.write(`${ansis.red("[Timeout]")} ${result.url}\n`);
-        updateBar();
         return;
       }
 
@@ -253,7 +249,7 @@ program
   .description(
     "Ridiculously fast web & TCP fuzzer designed for brute-forcing \ndirectories, subdomains, and files on web servers."
   )
-  .version("0.0.1")
+  .version(__VERSION)
   .argument("[url]", "target URL (use FUZZ as the placeholder)")
   .option(
     "-w, --wordlist <wordlist>",
@@ -295,10 +291,7 @@ program
     "--verbose",
     "uses Bun's verbose HTTP request logging, useful for debugging"
   )
-  .option(
-    "--proxy <proxy>",
-    "uses a proxy"
-  )
+  .option("--proxy <proxy>", "uses a proxy")
   .option(
     "--spoofip",
     "sets X-Forwarded-For and X-Real-IP headers with a random fake IP"
@@ -330,7 +323,7 @@ program
     if (!url?.trim()) {
       program.help();
     }
-    if (!tcp && !url.startsWith("http://") && !url.startsWith("https://")) { 
+    if (!tcp && !url.startsWith("http://") && !url.startsWith("https://")) {
       program.error("Target URL must use http or https when using HTTP mode");
     }
     if (!URL.canParse(url) && !tcp) {
@@ -407,5 +400,37 @@ program
 
     process.exit();
   });
+
+program.command("update").action(async () => {
+  const release = await (
+    await fetch(
+      "https://api.github.com/repos/tiagorangel1/bunbuster/releases/latest",
+      {
+        headers: {
+          Accept: "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28",
+        },
+      }
+    )
+  ).json();
+
+  clearLine();
+
+  if (release.tag_name === __VERSION) {
+    console.log(
+      ansis.green("Congrats! ") +
+        "You're already on the latest version of BunBuster " +
+        ansis.dim(`(which is ${__VERSION})`)
+    );
+    process.exit();
+  }
+  
+  console.log(ansis.green.bold("New version available: ") + `${release.tag_name} ${ansis.dim(`(${release.name})`)}`);
+  console.log(`\nInstall at: ${release.html_url}`);
+
+  require('child_process').spawn(process.platform === 'win32' ? 'start' : process.platform === 'darwin' ? 'open' : 'xdg-open', [release.html_url], { stdio: 'ignore' });
+
+  process.exit();
+});
 
 program.parse(process.argv);
