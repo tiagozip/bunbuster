@@ -66,8 +66,6 @@ const performRequest = async (word) => {
     await rateLimiter();
     const res = await checkTCP(requestURL.split(":")[0], tcp);
     if (res === "open") return { type: "match", url: requestURL, size: 0 };
-    if (res === "timeout")
-      parentPort.postMessage({ type: "timeout", url: requestURL });
     return null;
   }
 
@@ -85,7 +83,6 @@ const performRequest = async (word) => {
         fetchPromise,
         new Promise((_, reject) => {
           const timer = setTimeout(() => {
-            parentPort.postMessage({ type: "timeout", url: requestURL });
             controller.abort();
             reject(new Error("timeout"));
           }, timeout);
