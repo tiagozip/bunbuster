@@ -8,18 +8,20 @@ Up to **3.5x** faster than ffuf and fully built with Bun. Available for Windows,
 
 <small>* Without using artificial ratelimits, and in my own testing. Might vary depending on your machine.</small>
 
+***
+
 ## Installation
 
-### Prebuilt Executable
+1. Go to the [releases page](https://github.com/tiagorangel1/bunbuster/releases/latest) and download the executable for your platform.
+2. Rename the file to `bunbuster`
+3. If you're on Linux, give the file executable permissions (`chmod +x bunbuster`)
+4. Add the executable to your PATH:
+   - **Linux:** `echo 'export PATH="$PATH:$(pwd)/bunbuster"' >> ~/.bashrc && source ~/.bashrc`
+   - **Windows:** `setx PATH "%PATH%;%cd%\bunbuster"`
+   - **Mac:** `echo 'export PATH="$PATH:$(pwd)/bunbuster"' >> ~/.zshrc && source ~/.zshrc`
 
-Go to the [releases page](https://github.com/tiagorangel1/bunbuster/releases) and download the latest version for your platform.
 
 Make sure it has executable permissions (`chmod +x bunbuster-xxxxxxx`) and to add it to PATH, or else you'll have to cd into the executable's folder and use `./bunbuster` instead of `bunbuster`.
-
-### From Source
-
-Clone the repo, `bun install` and then `bun run build`
-
 ## Features
 
 - **Super fast**:
