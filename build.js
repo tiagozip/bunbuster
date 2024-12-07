@@ -9,9 +9,11 @@ const targets = {
 };
 
 (async () => {
-  for (const [target, key] of Object.entries(targets)) {
+  const promises = Object.entries(targets).map(([target, key]) => {
     console.log(`Starting building for ${target}...`);
-    await $`bun build ./src/index.js --target=${key} --compile --minify --sourcemap --outfile ./out/bunbuster-${target}`;
-    console.log(`Finished building for ${target}...`);
-  }
+    return $`bun build ./src/index.js --target=${key} --compile --minify --bytecode --sourcemap --outfile ./out/bunbuster-${target}`
+      .then(() => console.log(`Finished building for ${target}...`));
+  });
+
+  await Promise.all(promises);
 })();
