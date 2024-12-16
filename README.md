@@ -3,6 +3,10 @@
 
 Up to **3.5x** faster than ffuf and fully built with Bun. Available for Windows, Mac and Linux.
 
+
+| [Download](#installation) | [Usage & examples](#usage) | [Website](https://bunbuster.glitch.me)
+|----------|----------|----------|
+
 ![Screenshot of a BunBuster scan's result, finding 2 paths on a test server](./assets/screenshot.png)
 ![Screenshot of a BunBuster scan in progress](./assets/screenshot-loader.png)
 
