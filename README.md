@@ -34,7 +34,7 @@ Make sure it has executable permissions (`chmod +x bunbuster-xxxxxxx`) and to ad
 - **Filtering**:
   - Filter responses by size
   - Filter responses by status code
-- **Very customizable**:
+- **Super customizable**:
   - Custom headers
   - Custom methods
   - Fully configurable request parameters
@@ -48,7 +48,7 @@ Make sure it has executable permissions (`chmod +x bunbuster-xxxxxxx`) and to ad
   - Export as CSV
   - View request sizes
   - Easy to understand docs
-  - Very simple to use UI
+  - Clean UX
 
 
 > Note: As all other web fuzzers, you'll need a wordlist. You can download sample ones from the `assets/wordlists` folder in this repo.
@@ -93,7 +93,7 @@ bunbuster http://ffuf.me/cd/param/data?FUZZ=1 -w ./wordlists/parameters.txt
 bunbuster http://ffuf.test/cd/rate/FUZZ -w ./wordlists/common.txt -rpm 3000 # 50 req/s
 ```
 
-### Automaric ratelimit detection
+### Automatic ratelimit detection
 ```bash
 bunbuster http://ffuf.test/cd/rate/FUZZ -w ./wordlists/common.txt
 # note that -rpm is not set
