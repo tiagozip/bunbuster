@@ -26,6 +26,10 @@ Up to **3.5x** faster than ffuf and fully built with Bun. Available for Windows,
 
 
 Make sure it has executable permissions (`chmod +x bunbuster-xxxxxxx`) and to add it to PATH, or else you'll have to cd into the executable's folder and use `./bunbuster` instead of `bunbuster`.
+
+### (alternative) Compile from scratch
+You'll only need Bun. Install it and run `bun install`, then `bun run build.js`. The executables should pop up in the out/ folder.
+
 ## Features
 
 - **Super fast**:
