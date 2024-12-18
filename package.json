@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "bun run ./src/index.js",
+    "demo": "bun run start http://ffuf.me/cd/basic/FUZZ",
     "build": "bun run ./build.js"
   },
   "dependencies": {
