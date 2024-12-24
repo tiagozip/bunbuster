@@ -62,11 +62,11 @@ async function readWordlist(filePath) {
   }
 }
 
+let workerBlobUrl;
+
 function createWorker(url, words) {
   return new Promise((resolve, reject) => {
-    const worker = new Worker(
-      (typeof __dirname === "undefined" ? process.cwd() : __dirname) +
-        "/worker.js",
+    const worker = new Worker(workerBlobUrl,
       {
         workerData: {
           url,
@@ -365,6 +365,15 @@ program
     ) {
       program.error("FUZZ placeholder not found in URL or options");
     }
+
+    workerBlobUrl = URL.createObjectURL(new Blob(
+      [
+        await fs.readFile("./src/worker.js", "utf-8"),
+      ],
+      {
+        type: "application/javascript",
+      },
+    ));
 
     wordlist = await readWordlist(wordlistPath);
     progress = 0;
