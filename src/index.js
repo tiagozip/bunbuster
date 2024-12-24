@@ -253,8 +253,7 @@ program
   .argument("[url]", "target URL (use FUZZ as the placeholder)")
   .option(
     "-w, --wordlist <wordlist>",
-    "wordlist path",
-    "./assets/wordlists/common.txt"
+    "wordlist path"
   )
   .option(
     "-o, --opts <opts>",
@@ -331,6 +330,9 @@ program
     }
     if (tcp && (url.includes("https://") || url.includes("http://"))) {
       program.error("TCP mode does not support http/https");
+    }
+    if (!options.wordlist) {
+      program.error("Wordlist required. Please provide it using the -w argument.");
     }
     if (
       (tcp && parseInt(options.tcp, 10) > 65535) ||
