@@ -11,9 +11,7 @@ const targets = {
 
 (async () => {
   // this is a quick hack to fix #1
-  let fileClone = fs.readFileSync("./src/index.js", "utf-8").replaceAll(`await fs.readFile("./src/worker.js", "utf-8")`, `decodeURIComponent(\`${
-    encodeURIComponent(fs.readFileSync("./src/worker.js", "utf-8"))
-  }\`)`);
+  let fileClone = fs.readFileSync("./src/index.js", "utf-8").replaceAll(`await fs.readFile("./src/worker.js", "utf-8")`, `decodeURIComponent(\`${encodeURIComponent(fs.readFileSync("./src/worker.js", "utf-8"))}\`)`);
 
   fs.writeFileSync("./src/index.temp.js", fileClone)
 
