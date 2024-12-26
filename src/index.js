@@ -5,7 +5,7 @@ import { Worker } from "worker_threads";
 import fs from "fs/promises";
 import os from "os";
 
-const __VERSION = "v0.0.6";
+const __VERSION = "v0.1.0";
 const __REPO = "https://github.com/tiagorangel1/bunbuster";
 
 if (!process.versions.bun) {
