@@ -378,8 +378,6 @@ program
       },
     ));
 
-    await fs.readFile("./src/HAWK.js", "utf-8")
-
     wordlist = await readWordlist(wordlistPath);
     progress = 0;
 
