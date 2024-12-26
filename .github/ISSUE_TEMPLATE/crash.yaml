@@ -1,0 +1,44 @@
+name: Crash
+description: Report an error or issue in BunBuster
+labels:
+  - bug
+  - error
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Thank you for submitting an error report!** Your feedback helps us improve BunBuster and fix issues quickly.
+  - type: textarea
+    id: error_message
+    attributes:
+      label: Error Message
+      description: Paste the error message you encountered here.
+  - type: input
+    id: environment
+    attributes:
+      label: Your Environment
+      description: Provide details such as OS version (e.g., Windows 11 or macOS Sequoia).
+  - type: textarea
+    id: installation_method
+    attributes:
+      label: Installation Method
+      description: Did you download a binary (exe), build it yourself, or run it with Bun?
+  - type: textarea
+    id: steps_to_reproduce
+    attributes:
+      label: Steps to Reproduce
+      description: Describe the steps to reproduce the issue, including the command you used to trigger the error.
+  - type: textarea
+    id: expected_behaviour
+    attributes:
+      label: Expected Behaviour
+      description: Explain what you expected to happen.
+  - type: textarea
+    id: actual_behaviour
+    attributes:
+      label: Actual Behaviour
+      description: Explain what actually happened instead.
+  - type: markdown
+    attributes:
+      value: |
+        **Note:** Make sure you are using the latest version of BunBuster by running `bunbuster update` before submitting this report.
