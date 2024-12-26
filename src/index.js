@@ -368,6 +368,7 @@ program
       program.error("FUZZ placeholder not found in URL or options");
     }
 
+    try {
     workerBlobUrl = URL.createObjectURL(new Blob(
       [
         await fs.readFile("./src/worker.js", "utf-8"),
@@ -376,6 +377,8 @@ program
         type: "application/javascript",
       },
     ));
+
+    await fs.readFile("./src/HAWK.js", "utf-8")
 
     wordlist = await readWordlist(wordlistPath);
     progress = 0;
@@ -408,6 +411,15 @@ program
         `in ${(milliseconds / 1000).toFixed(2)}s`
       )}\n`
     );
+  } catch (e) {
+    console.error(ansis.red("error") + ansis.gray(":"), e, `
+${ansis.dim("┌───────────────────────────────────────┐")}
+${ansis.dim("│")}                                       ${ansis.dim("│")}
+${ansis.dim("│")}      ${ansis.bold("Please report this crash:")}        ${ansis.dim("│")}
+${ansis.dim("│")}       ${ansis.red.bold("https://git.new/bcrash")}          ${ansis.dim("│")}
+${ansis.dim("│")}                                       ${ansis.dim("│")}
+${ansis.dim("└───────────────────────────────────────┘")}`)
+  }
 
     process.exit();
   });
