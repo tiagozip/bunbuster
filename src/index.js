@@ -101,7 +101,7 @@ function createWorker(url, words) {
           `${
             ansis[color]("█").repeat(filledLength) +
             ansis.gray("░").repeat(barLength - filledLength)
-          } ${progPerc}% ${ansis.dim(`(${progress})`)}`
+          } ${progPerc}% ${ansis.gray(`(${progress})`)}`
         );
       }
 
@@ -239,7 +239,7 @@ program.configureHelp({
         ansis.gray("(" + content + ")")
       ) +
       (option.defaultValue
-        ? ansis.dim(` (default: ${option.defaultValue})`)
+        ? ansis.gray(` (default: ${option.defaultValue})`)
         : "")
     );
   },
@@ -418,12 +418,12 @@ program
     );
   } catch (e) {
     console.error(ansis.red("error") + ansis.gray(":"), e, `
-${ansis.dim("┌───────────────────────────────────────┐")}
-${ansis.dim("│")}                                       ${ansis.dim("│")}
-${ansis.dim("│")}      ${ansis.bold("Please report this crash:")}        ${ansis.dim("│")}
-${ansis.dim("│")}       ${ansis.red.bold("https://git.new/bcrash")}          ${ansis.dim("│")}
-${ansis.dim("│")}                                       ${ansis.dim("│")}
-${ansis.dim("└───────────────────────────────────────┘")}`)
+${ansis.gray("┌───────────────────────────────────────┐")}
+${ansis.gray("│")}                                       ${ansis.gray("│")}
+${ansis.gray("│")}      ${ansis.bold("Please report this crash:")}        ${ansis.gray("│")}
+${ansis.gray("│")}       ${ansis.red.bold("https://git.new/bcrash")}          ${ansis.gray("│")}
+${ansis.gray("│")}                                       ${ansis.gray("│")}
+${ansis.gray("└───────────────────────────────────────┘")}`)
   }
 
     process.exit();
@@ -448,12 +448,12 @@ program.command("update").action(async () => {
     console.log(
       ansis.green("Congrats! ") +
         "You're already on the latest version of BunBuster " +
-        ansis.dim(`(which is ${__VERSION})`)
+        ansis.gray(`(which is ${__VERSION})`)
     );
     process.exit();
   }
   
-  console.log(ansis.green.bold("New version available: ") + `${release.tag_name} ${ansis.dim(`(${release.name})`)}`);
+  console.log(ansis.green.bold("New version available: ") + `${release.tag_name} ${ansis.gray(`(${release.name})`)}`);
   console.log(`\nInstall at: ${release.html_url}`);
 
   require('child_process').spawn(process.platform === 'win32' ? 'start' : process.platform === 'darwin' ? 'open' : 'xdg-open', [release.html_url], { stdio: 'ignore' });
