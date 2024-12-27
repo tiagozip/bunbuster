@@ -5,7 +5,7 @@ import { Worker } from "worker_threads";
 import fs from "fs/promises";
 import os from "os";
 
-const __VERSION = "v0.1.1";
+const __VERSION = "v0.1.2";
 const __REPO = "tiagorangel1/bunbuster";
 let color = "magentaBright";
 
@@ -101,7 +101,7 @@ function createWorker(url, words) {
           `${
             ansis[color]("█").repeat(filledLength) +
             ansis.gray("░").repeat(barLength - filledLength)
-          } ${Math.floor((progress / wordlist.length) * 100)}% ${ansis.dim(`(${progress})`)}`
+          } ${progPerc}% ${ansis.dim(`(${progress})`)}`
         );
       }
 
