@@ -5,9 +5,8 @@ import { Worker } from "worker_threads";
 import fs from "fs/promises";
 import os from "os";
 
-const __VERSION = "v0.1.0";
-const __REPO = "https://github.com/tiagorangel1/bunbuster";
-
+const __VERSION = "v0.1.1";
+const __REPO = "tiagorangel1/bunbuster";
 let color = "magentaBright";
 
 if (!process.versions.bun) {
@@ -433,7 +432,7 @@ ${ansis.dim("└─────────────────────�
 program.command("update").action(async () => {
   const release = await (
     await fetch(
-      "https://api.github.com/repos/tiagorangel1/bunbuster/releases/latest",
+      `https://api.github.com/${__REPO}/releases/latest`,
       {
         headers: {
           Accept: "application/vnd.github+json",
