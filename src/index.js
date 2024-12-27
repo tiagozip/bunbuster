@@ -8,6 +8,8 @@ import os from "os";
 const __VERSION = "v0.1.0";
 const __REPO = "https://github.com/tiagorangel1/bunbuster";
 
+let color = "magentaBright";
+
 if (!process.versions.bun) {
   console.log(
     ansis.yellow("warn") +
@@ -98,9 +100,9 @@ function createWorker(url, words) {
         clearLine();
         process.stdout.write(
           `${
-            ansis.magentaBright("█").repeat(filledLength) +
+            ansis[color]("█").repeat(filledLength) +
             ansis.gray("░").repeat(barLength - filledLength)
-          } ${progPerc}%`
+          } ${Math.floor((progress / wordlist.length) * 100)}% ${ansis.dim(`(${progress})`)}`
         );
       }
 
@@ -184,7 +186,7 @@ async function distributeWork(wordlist) {
 }
 program.addHelpText(
   "beforeAll",
-  ansis.bold.magentaBright(` _                 _               _
+  ansis.bold[color](` _                 _               _
 | |__  _   _ _ __ | |__  _   _ ___| |_ ___ _ __
 | '_ \\| | | | '_ \\| '_ \\| | | / __| __/ _ \\ '__|
 | |_) | |_| | | | | |_) | |_| \\__ \\ ||  __/ |
@@ -215,14 +217,14 @@ program.configureHelp({
       .join(" ");
     const aliases = cmd.aliases();
     return (
-      ansis.bold.magentaBright(cmd.name()) +
+      ansis.bold[color](cmd.name()) +
       (aliases[0] ? "|" + aliases[0] : "") +
       (cmd.options.length ? " [options]" : "") +
       (args ? " " + args : "")
     );
   },
   argumentTerm: (arg) => {
-    return ansis.bold.magentaBright(arg.name());
+    return ansis.bold[color](arg.name());
   },
   argumentDescription: (arg) => {
     return arg.description.replace(/\((.*?)\)/g, (_, content) =>
@@ -230,7 +232,7 @@ program.configureHelp({
     );
   },
   optionTerm: (option) => {
-    return ansis.bold.magentaBright(option.flags);
+    return ansis.bold[color](option.flags);
   },
   optionDescription: (option) => {
     return (
@@ -301,10 +303,16 @@ program
     "--tcp <port>",
     "if specified, uses a TCP connection on the port specified"
   )
+  .option(
+    "--color <color>",
+    "default logging color (as in chalk/ansis color name)",
+    color
+  )
   .action(async (url, options) => {
     spoofip = options.spoofip || false;
     targetURL = url;
     wordlistPath = options.wordlist;
+    color = options.color || color;
     filterCodes = options.filtercodes.split(",").map(Number);
     threads = parseInt(options.threads, 10);
     parallel = parseInt(options.parallel, 10);
@@ -399,7 +407,7 @@ program
 
     clearLine();
     process.stdout.write(
-      `${!resultsCount ? "" : "\n"}${
+      `\n${
         !resultsCount
           ? ansis.bold.red("No results found")
           : ansis.bold(
