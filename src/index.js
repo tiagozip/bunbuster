@@ -114,6 +114,7 @@ function createWorker(url, words) {
         resolve();
         return;
       }
+
       if (result.type === "progress") {
         updateBar(result.count);
         return;
