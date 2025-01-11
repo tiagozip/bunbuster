@@ -376,8 +376,6 @@ program
     }
 
     try {
-      crash;
-
       workerBlobUrl = URL.createObjectURL(
         new Blob([await fs.readFile("./src/worker.js", "utf-8")], {
           type: "application/javascript",
