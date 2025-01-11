@@ -6,7 +6,6 @@ import fs from "fs/promises";
 import os from "os";
 
 const __VERSION = "v0.1.2";
-const __REPO = "tiagorangel1/bunbuster";
 let color = "magentaBright";
 
 if (!process.versions.bun) {
@@ -251,7 +250,10 @@ program
   )
   .version(__VERSION)
   .argument("[url]", "target URL (use FUZZ as the placeholder)")
-  .option("-w, --wordlist <wordlist>", "wordlist path (text file with one word per line)")
+  .option(
+    "-w, --wordlist <wordlist>",
+    "wordlist path (text file with one word per line)"
+  )
   .option(
     "-o, --opts <opts>",
     "fetch request options in JSON (use FUZZ as a placeholder, if applicable)",
@@ -374,6 +376,8 @@ program
     }
 
     try {
+      crash;
+
       workerBlobUrl = URL.createObjectURL(
         new Blob([await fs.readFile("./src/worker.js", "utf-8")], {
           type: "application/javascript",
@@ -412,6 +416,21 @@ program
         )}\n`
       );
     } catch (e) {
+      const os = require("os");
+      const logfile = os.tmpdir() + "/BUNBUSTER_CRASH.log";
+
+      fs.writeFile(logfile, JSON.stringify({
+        err: e.message,
+        stack: e.stack,
+        bunv: process.versions.bun,
+        args: process.argv,
+        os: {
+          platform: os.platform() + " " + os.release() + " (" + os.arch() + ")",
+          cpu: os.cpus()[0].model,
+          mem: os.freemem() + "/" + os.totalmem()
+        },
+      }));
+
       console.error(
         ansis.red("error") + ansis.gray(":"),
         e,
@@ -425,51 +444,18 @@ ${ansis.gray("│")}       ${ansis.red.bold(
           "https://git.new/bcrash"
         )}          ${ansis.gray("│")}
 ${ansis.gray("│")}                                       ${ansis.gray("│")}
-${ansis.gray("└───────────────────────────────────────┘")}`
+${ansis.gray("└───────────────────────────────────────┘")}
+
+Please run the following command and paste the
+results to your issue, it will help us diagnose
+your problem significantly faster:
+
+${ansis.gray("$")} cat ${ansis.bold(os.tmpdir())}${ansis.bold("/BUNBUSTER_CRASH.log")}
+`
       );
     }
 
     process.exit();
   });
-
-program.command("update").action(async () => {
-  const release = await (
-    await fetch(`https://api.github.com/${__REPO}/releases/latest`, {
-      headers: {
-        Accept: "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
-      },
-    })
-  ).json();
-
-  clearLine();
-
-  if (release.tag_name === __VERSION) {
-    console.log(
-      ansis.green("Congrats! ") +
-        "You're already on the latest version of BunBuster " +
-        ansis.gray(`(which is ${__VERSION})`)
-    );
-    process.exit();
-  }
-
-  console.log(
-    ansis.green.bold("New version available: ") +
-      `${release.tag_name} ${ansis.gray(`(${release.name})`)}`
-  );
-  console.log(`\nInstall at: ${release.html_url}`);
-
-  require("child_process").spawn(
-    process.platform === "win32"
-      ? "start"
-      : process.platform === "darwin"
-      ? "open"
-      : "xdg-open",
-    [release.html_url],
-    { stdio: "ignore" }
-  );
-
-  process.exit();
-});
 
 program.parse(process.argv);
