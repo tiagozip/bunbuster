@@ -67,24 +67,22 @@ let workerBlobUrl;
 
 function createWorker(url, words) {
   return new Promise((resolve, reject) => {
-    const worker = new Worker(workerBlobUrl,
-      {
-        workerData: {
-          url,
-          words,
-          filterCodes,
-          opts,
-          filesizeFilter,
-          requestDelay: requestsPerMinute ? 60000 / requestsPerMinute : 0,
-          parallel: requestsPerMinute >= 100000 ? parallel : 1,
-          spoofip,
-          timeout,
-          retries,
-          tcp,
-          requestsPerMinute,
-        },
-      }
-    );
+    const worker = new Worker(workerBlobUrl, {
+      workerData: {
+        url,
+        words,
+        filterCodes,
+        opts,
+        filesizeFilter,
+        requestDelay: requestsPerMinute ? 60000 / requestsPerMinute : 0,
+        parallel: requestsPerMinute >= 100000 ? parallel : 1,
+        spoofip,
+        timeout,
+        retries,
+        tcp,
+        requestsPerMinute,
+      },
+    });
 
     const updateBar = function (count) {
       if (count) {
@@ -253,10 +251,7 @@ program
   )
   .version(__VERSION)
   .argument("[url]", "target URL (use FUZZ as the placeholder)")
-  .option(
-    "-w, --wordlist <wordlist>",
-    "wordlist path"
-  )
+  .option("-w, --wordlist <wordlist>", "wordlist path (text file with one word per line)")
   .option(
     "-o, --opts <opts>",
     "fetch request options in JSON (use FUZZ as a placeholder, if applicable)",
@@ -340,7 +335,9 @@ program
       program.error("TCP mode does not support http/https");
     }
     if (!options.wordlist) {
-      program.error("Wordlist required. Please provide it using the -w argument.");
+      program.error(
+        "Wordlist required. Please provide it using the -w argument."
+      );
     }
     if (
       (tcp && parseInt(options.tcp, 10) > 65535) ||
@@ -377,70 +374,72 @@ program
     }
 
     try {
-    workerBlobUrl = URL.createObjectURL(new Blob(
-      [
-        await fs.readFile("./src/worker.js", "utf-8"),
-      ],
-      {
-        type: "application/javascript",
-      },
-    ));
+      workerBlobUrl = URL.createObjectURL(
+        new Blob([await fs.readFile("./src/worker.js", "utf-8")], {
+          type: "application/javascript",
+        })
+      );
 
-    wordlist = await readWordlist(wordlistPath);
-    progress = 0;
+      wordlist = await readWordlist(wordlistPath);
+      progress = 0;
 
-    console.log(
-      ansis.gray(
-        `${tcp ? "TCP" : opts?.method?.toUpperCase() || "GET"} ${
-          tcp
-            ? targetURL.replaceAll("FUZZ", ansis.bold("FUZZ")) + ":" + tcp
-            : targetURL.replaceAll("FUZZ", ansis.bold("FUZZ"))
-        } (${wordlist.length} words)\n`
-      )
-    );
+      console.log(
+        ansis.gray(
+          `${tcp ? "TCP" : opts?.method?.toUpperCase() || "GET"} ${
+            tcp
+              ? targetURL.replaceAll("FUZZ", ansis.bold("FUZZ")) + ":" + tcp
+              : targetURL.replaceAll("FUZZ", ansis.bold("FUZZ"))
+          } (${wordlist.length} words)\n`
+        )
+      );
 
-    const start = process.hrtime();
-    await distributeWork(wordlist);
+      const start = process.hrtime();
+      await distributeWork(wordlist);
 
-    const [seconds, nanoseconds] = process.hrtime(start);
-    const milliseconds = seconds * 1000 + nanoseconds / 1e6;
+      const [seconds, nanoseconds] = process.hrtime(start);
+      const milliseconds = seconds * 1000 + nanoseconds / 1e6;
 
-    clearLine();
-    process.stdout.write(
-      `\n${
-        !resultsCount
-          ? ansis.bold.red("No results found")
-          : ansis.bold(
-              `${resultsCount} result${resultsCount === 1 ? "" : "s"} found`
-            )
-      }\nFuzzing complete ${ansis.gray(
-        `in ${(milliseconds / 1000).toFixed(2)}s`
-      )}\n`
-    );
-  } catch (e) {
-    console.error(ansis.red("error") + ansis.gray(":"), e, `
+      clearLine();
+      process.stdout.write(
+        `\n${
+          !resultsCount
+            ? ansis.bold.red("No results found")
+            : ansis.bold(
+                `${resultsCount} result${resultsCount === 1 ? "" : "s"} found`
+              )
+        }\nFuzzing complete ${ansis.gray(
+          `in ${(milliseconds / 1000).toFixed(2)}s`
+        )}\n`
+      );
+    } catch (e) {
+      console.error(
+        ansis.red("error") + ansis.gray(":"),
+        e,
+        `
 ${ansis.gray("┌───────────────────────────────────────┐")}
 ${ansis.gray("│")}                                       ${ansis.gray("│")}
-${ansis.gray("│")}      ${ansis.bold("Please report this crash:")}        ${ansis.gray("│")}
-${ansis.gray("│")}       ${ansis.red.bold("https://git.new/bcrash")}          ${ansis.gray("│")}
+${ansis.gray("│")}      ${ansis.bold(
+          "Please report this crash:"
+        )}        ${ansis.gray("│")}
+${ansis.gray("│")}       ${ansis.red.bold(
+          "https://git.new/bcrash"
+        )}          ${ansis.gray("│")}
 ${ansis.gray("│")}                                       ${ansis.gray("│")}
-${ansis.gray("└───────────────────────────────────────┘")}`)
-  }
+${ansis.gray("└───────────────────────────────────────┘")}`
+      );
+    }
 
     process.exit();
   });
 
 program.command("update").action(async () => {
   const release = await (
-    await fetch(
-      `https://api.github.com/${__REPO}/releases/latest`,
-      {
-        headers: {
-          Accept: "application/vnd.github+json",
-          "X-GitHub-Api-Version": "2022-11-28",
-        },
-      }
-    )
+    await fetch(`https://api.github.com/${__REPO}/releases/latest`, {
+      headers: {
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+    })
   ).json();
 
   clearLine();
@@ -453,11 +452,22 @@ program.command("update").action(async () => {
     );
     process.exit();
   }
-  
-  console.log(ansis.green.bold("New version available: ") + `${release.tag_name} ${ansis.gray(`(${release.name})`)}`);
+
+  console.log(
+    ansis.green.bold("New version available: ") +
+      `${release.tag_name} ${ansis.gray(`(${release.name})`)}`
+  );
   console.log(`\nInstall at: ${release.html_url}`);
 
-  require('child_process').spawn(process.platform === 'win32' ? 'start' : process.platform === 'darwin' ? 'open' : 'xdg-open', [release.html_url], { stdio: 'ignore' });
+  require("child_process").spawn(
+    process.platform === "win32"
+      ? "start"
+      : process.platform === "darwin"
+      ? "open"
+      : "xdg-open",
+    [release.html_url],
+    { stdio: "ignore" }
+  );
 
   process.exit();
 });
