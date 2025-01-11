@@ -5,7 +5,7 @@ import { Worker } from "worker_threads";
 import fs from "fs/promises";
 import os from "os";
 
-const __VERSION = "v0.1.2";
+const __VERSION = "v0.1.3";
 let color = "magentaBright";
 
 if (!process.versions.bun) {
