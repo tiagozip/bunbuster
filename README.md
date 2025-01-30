@@ -140,7 +140,6 @@ bunbuster https://$FUZZ1.example.com/$FUZZ2 -w "./wordlists/subdomains.txt, ./wo
 
 * Ability to use with `bunx`
 
-
 ## Notes
 
 - If you don't know how to use this, copy this file and give it to ChatGPT. It will tell you everything you need to know. Don't open an issue.
