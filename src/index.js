@@ -271,12 +271,12 @@ program
   )
   .option("-f, --filesize <size>", "filesize to filter out results", "0")
   .option(
-    "-rpm, --requests-per-minute <rpm>",
+    "--requests-per-minute <rpm>",
     "maximum requests per minute",
     "1000000"
   )
   .option(
-    "-out, --output-file <output>",
+    "--output-file <output>",
     "file where results will be stored",
     ""
   )
