@@ -269,7 +269,7 @@ program
     "number of threads/workers to use",
     os.cpus().length
   )
-  .option("-fs, --filesize <size>", "filesize to filter out results", "0")
+  .option("-f, --filesize <size>", "filesize to filter out results", "0")
   .option(
     "-rpm, --requests-per-minute <rpm>",
     "maximum requests per minute",
