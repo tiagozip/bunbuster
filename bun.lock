@@ -4,16 +4,13 @@
     "": {
       "name": "bunbuster",
       "dependencies": {
-        "bunbuster": ".",
-        "ansis": "^3.3.2",
+        "ansis": "^4.0.0",
         "commander": "^13.1.0",
       },
     },
   },
   "packages": {
-    "ansis": ["ansis@3.3.2", "", {}, "sha512-cFthbBlt+Oi0i9Pv/j6YdVWJh54CtjGACaMPCIrEV4Ha7HWsIjXDwseYV79TIL0B4+KfSwD5S70PeQDkPUd1rA=="],
-
-    "bunbuster": ["bunbuster@file:", { "dependencies": { "ansis": "^3.3.2", "commander": "^13.1.0" }, "bin": { "bunbuster": "./src/index.js" } }],
+    "ansis": ["ansis@4.0.0", "", {}, "sha512-P8nrHI1EyW9OfBt1X7hMSwGN2vwRuqHSKJAT1gbLWZRzDa24oHjYwGHvEgHeBepupzk878yS/HBZ0NMPYtbolw=="],
 
     "commander": ["commander@13.1.0", "", {}, "sha512-/rFeCpNJQbhSZjGVwO9RFV3xPqbnERS8MmIQzCtD/zl6gpJuV/bMLuN92oG3F7d8oDEHHRrujSXNUr8fpjntKw=="],
   }
