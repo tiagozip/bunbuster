@@ -10,8 +10,7 @@
     "build": "bun run ./build.js"
   },
   "dependencies": {
-    "ansis": "^3.3.2",
-    "bunbuster": ".",
+    "ansis": "^4.0.0",
     "commander": "^13.1.0"
   },
   "bin": {
