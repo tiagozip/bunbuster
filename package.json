@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "ansis": "^4.0.0",
-    "commander": "^13.1.0"
+    "commander": "^14.0.1"
   },
   "bin": {
     "bunbuster": "./src/index.js"
