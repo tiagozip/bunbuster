@@ -34,11 +34,12 @@ bunx bunbuster https://example.com/FUZZ -w ./wordlist.txt
     - Fully-fledged TCP support
     - Fuzz by path, subdomains, parameters, request body, headers and more
 - **Filtering**:
-    - Filter responses by size
-    - Filter responses by status code
+    - Automatic soft-404 detection: random paths are probed first and matching responses are hidden
+    - Repeated identical responses are hidden after `--max-same` hits
+    - Filter or match by status code, size, word count and line count
 - **Super customizable**:
-    - Custom headers
-    - Custom methods
+    - Custom headers (`-H`), methods (`-X`) and bodies (`-d`)
+    - Extensions (`-x .php,.bak`)
     - Fully configurable request parameters
     - Use fuzzing in any request parameter, URL, paths, subdomains and more.
 - **Bypass ratelimits**:
@@ -51,7 +52,8 @@ bunx bunbuster https://example.com/FUZZ -w ./wordlist.txt
     - Only Bun is required
     - Auto-updates
 - **And more**:
-    - Export as CSV
+    - Export as CSV or JSON lines
+    - Wordlist from stdin with `-w -`
     - View request sizes
     - Easy to understand docs
     - Clean UX
@@ -100,14 +102,41 @@ bunx bunbuster http://ffuf.me/cd/param/data?FUZZ=1 -w ./wordlists/parameters.txt
 ### Set ratelimiting
 
 ```bash
-bunx bunbuster http://ffuf.test/cd/rate/FUZZ -w ./wordlists/common.txt -rpm 3000 # 50 req/s
+bunx bunbuster http://ffuf.test/cd/rate/FUZZ -w ./wordlists/common.txt --requests-per-minute 3000 # 50 req/s
 ```
 
-### Automatic ratelimit detection
+### Sites that return 200 for everything
+
+Bunbuster requests a few random paths before the scan and hides every response that looks like them (same status and size, or same word and line count). This is on by default.
 
 ```bash
-bunx bunbuster http://ffuf.test/cd/rate/FUZZ -w ./wordlists/common.txt
-# note that -rpm is not set
+bunx bunbuster https://example.com/FUZZ -w ./wordlists/common.txt
+```
+
+If a site reflects the path in a way that defeats this, results that share a response are hidden after 15 hits. Change it with `--max-same <n>`, or filter by hand:
+
+```bash
+bunx bunbuster https://example.com/FUZZ -w ./wordlists/common.txt -f 1234,5678 --filter-words 42 --filter-lines 10
+bunx bunbuster https://example.com/FUZZ -w ./wordlists/common.txt --no-calibrate --max-same 0
+```
+
+### Extensions
+
+```bash
+bunx bunbuster https://example.com/FUZZ -w ./wordlists/common.txt -x .php,.bak,.zip
+```
+
+### Headers, method and body
+
+```bash
+bunx bunbuster https://api.example.com/FUZZ -w ./wordlists/all.txt -H "Cookie: session=abc" -X POST -d '{"a":1}'
+```
+
+### Output
+
+```bash
+bunx bunbuster https://example.com/FUZZ -w ./wordlists/common.txt --output-file results.json
+bunx bunbuster https://example.com/FUZZ -w ./wordlists/common.txt --silent | httpx
 ```
 
 ### Proxying
@@ -127,7 +156,8 @@ bunx bunbuster https://FUZZ.example.com -w ./wordlists/subdomains.txt
 ```bash
 bunx bunbuster https://api.example.com/FUZZ \
   -w ./wordlists/all.txt \
-  -o '{"headers": {"Authorization": "Bearer TOKEN"}}'
+  -H "Authorization: Bearer TOKEN"
+# FUZZ also works inside headers, bodies and any other request option
 ```
 
 ### Verbose logging

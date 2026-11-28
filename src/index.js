@@ -2,185 +2,226 @@
 import { program } from "commander";
 import ansis from "ansis";
 import { Worker } from "worker_threads";
-import fs from "fs/promises";
+import fs from "fs";
 import os from "os";
-
-const __VERSION = "v0.1.3";
-let color = "magentaBright";
+import pkg from "../package.json" with { type: "json" };
+import { calibrate } from "./request.js";
 
 if (!process.versions.bun) {
   console.log(
-    ansis.yellow("warn") +
-      ansis.gray(": ") +
-      ansis.bold(
-        "This code is intended to be ran with Bun. You might \nexperience unexpected issues when using Node or other \nruntimes.\n"
-      )
+    `${ansis.yellow("warn")}${ansis.gray(": ")}${ansis.bold(
+      "This code is intended to be ran with Bun. You might\nexperience unexpected issues when using Node or other\nruntimes.\n"
+    )}`
   );
 }
 
-const clearLine = function () {
-  if (process.stdout.isTTY) {
-    process.stdout.clearLine(0);
-    process.stdout.cursorTo(0);
+let color = "magentaBright";
+
+const out = process.stdout;
+const err = process.stderr;
+
+const fail = (message) => {
+  err.write(`${ansis.red("error")}${ansis.gray(": ")}${ansis.bold(message)}\n`);
+  process.exit(1);
+};
+
+const list = (value) =>
+  value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+const numbers = (value, name) =>
+  list(value).map((item) => {
+    const number = Number(item);
+    if (!Number.isInteger(number) || number < 0) fail(`Invalid ${name}: ${item}`);
+    return number;
+  });
+
+const collect = (value, previous) => [...previous, value];
+
+const formatSize = (size) => {
+  if (size >= 1024 ** 3) return `${(size / 1024 ** 3).toFixed(2)}gb`;
+  if (size >= 1024 ** 2) return `${(size / 1024 ** 2).toFixed(2)}mb`;
+  if (size >= 1024) return `${(size / 1024).toFixed(2)}kb`;
+  return `${size}b`;
+};
+
+const formatDuration = (seconds) => {
+  if (!Number.isFinite(seconds)) return "--";
+  const s = Math.round(seconds);
+  if (s < 60) return `${s}s`;
+  if (s < 3600) return `${Math.floor(s / 60)}m${String(s % 60).padStart(2, "0")}s`;
+  return `${Math.floor(s / 3600)}h${String(Math.floor((s % 3600) / 60)).padStart(2, "0")}m`;
+};
+
+const statusColor = (status) =>
+  [ansis.blue, ansis.green, ansis.yellow, ansis.red, ansis.red][
+    Math.floor(status / 100) - 1
+  ] ?? ansis.gray;
+
+const readWordlist = async (path) => {
+  try {
+    const content = path === "-" ? fs.readFileSync(0, "utf-8") : await fs.promises.readFile(path, "utf-8");
+    const seen = new Set();
+    for (const line of content.split("\n")) {
+      const word = line.trim();
+      if (word) seen.add(word);
+    }
+    return [...seen];
+  } catch (error) {
+    fail(`Unable to read wordlist: ${error.message}`);
   }
 };
 
-let wordlistPath,
-  filterCodes,
-  targetURL,
-  parallel,
-  opts,
-  filesizeFilter,
-  threads,
-  outputFile,
-  requestsPerMinute,
-  tcp,
-  retries = 4,
-  timeout = 5000,
-  proxy,
-  spoofip = false,
-  progress = 0,
-  resultsCount = 0,
-  wordlist = [],
-  lastLoggedPerc = -1;
+const runScan = (context) =>
+  new Promise((resolve, reject) => {
+    const { config, words, extensions, threads, parallel, batchSize, tcp, maxSame, outputFile, silent } = context;
+    const variants = extensions.length + 1;
+    const total = words.length * variants;
+    const jsonOutput = /\.jsonl?$/i.test(outputFile ?? "");
+    const sink = outputFile ? fs.createWriteStream(outputFile) : null;
+    if (sink && !jsonOutput) sink.write("code,url,size,words,lines\n");
 
-async function readWordlist(filePath) {
-  try {
-    const content = await fs.readFile(filePath, "utf-8");
-    return content
-      .split("\n")
-      .map((line) => line.trim())
-      .filter((line) => line);
-  } catch (error) {
-    console.log(
-      ansis.red("error") +
-        ansis.gray(": ") +
-        ansis.bold("Unable to read wordlist:"),
-      error
-    );
-    process.exit(1);
-  }
-}
+    const showBar = !silent && err.isTTY;
+    const started = performance.now();
+    const samples = [];
+    const sizeCounts = new Map();
+    const shapeCounts = new Map();
+    const hiddenGroups = new Map();
+    const workers = [];
 
-let workerBlobUrl;
+    let cursor = 0;
+    let done = 0;
+    let failed = 0;
+    let results = 0;
+    let hidden = 0;
+    let finished = 0;
+    let stopped = false;
 
-function createWorker(url, words) {
-  return new Promise((resolve, reject) => {
-    const worker = new Worker(workerBlobUrl, {
-      workerData: {
-        url,
-        words,
-        filterCodes,
-        opts,
-        filesizeFilter,
-        requestDelay: requestsPerMinute ? 60000 / requestsPerMinute : 0,
-        parallel: requestsPerMinute >= 100000 ? parallel : 1,
-        spoofip,
-        timeout,
-        retries,
-        tcp,
-        requestsPerMinute,
-      },
-    });
-
-    const updateBar = function (count) {
-      if (count) {
-        progress += count;
-      }
-      const progPerc = Math.floor((progress / wordlist.length) * 100);
-
-      if (lastLoggedPerc !== progPerc) {
-        const barLength = 50;
-        const filledLength = Math.ceil((progPerc / 100) * barLength);
-
-        clearLine();
-        process.stdout.write(
-          `${
-            ansis[color]("█").repeat(filledLength) +
-            ansis.gray("░").repeat(barLength - filledLength)
-          } ${progPerc}% ${ansis.gray(`(${progress})`)}`
-        );
-      }
-
-      lastLoggedPerc = progPerc;
+    const clear = () => {
+      if (showBar) err.write("\r\x1b[2K");
     };
 
-    worker.on("message", (result) => {
-      if (result.type === "done") {
-        worker.terminate();
-        resolve();
-        return;
-      }
+    const render = () => {
+      if (!showBar) return;
+      const now = performance.now();
+      samples.push([now, done]);
+      while (samples.length > 25) samples.shift();
+      const [firstTime, firstDone] = samples[0];
+      const rate = now > firstTime ? ((done - firstDone) / (now - firstTime)) * 1000 : 0;
+      const percent = Math.floor((done / total) * 100);
+      const filled = Math.ceil((percent / 100) * 40);
+      const eta = rate > 0 ? (total - done) / rate : Number.NaN;
+      err.write(
+        `\r\x1b[2K${ansis[color]("█").repeat(filled)}${ansis.gray("░").repeat(40 - filled)} ${percent}% ${ansis.gray(
+          `${done}/${total} ${Math.round(rate)} req/s eta ${formatDuration(eta)}${failed ? ` ${failed} failed` : ""}`
+        )}`
+      );
+    };
 
-      if (result.type === "progress") {
-        updateBar(result.count);
-        return;
+    const take = () => {
+      const batch = [];
+      while (batch.length < batchSize && cursor < total) {
+        const base = words[Math.floor(cursor / variants)];
+        const slot = cursor % variants;
+        batch.push(slot === 0 ? base : `${base}${extensions[slot - 1]}`);
+        cursor++;
       }
+      return batch;
+    };
 
-      if (result.type === "match") {
-        clearLine();
-        process.stdout.write(
-          `${
-            tcp
-              ? ansis.blue("[TCP]")
-              : [ansis.blue, ansis.green, ansis.yellow, ansis.red, ansis.red][
-                  parseInt(result.status.toString().split("")[0]) - 1
-                ](`[${result.status}]`)
-          } ${result.url}${
-            result.size
-              ? ansis.gray(
-                  ` (${
-                    result.size >= 1024 ** 3
-                      ? (result.size / 1024 ** 3).toFixed(2) + "gb"
-                      : result.size >= 1024 ** 2
-                      ? (result.size / 1024 ** 2).toFixed(2) + "mb"
-                      : result.size >= 1024
-                      ? (result.size / 1024).toFixed(2) + "kb"
-                      : result.size + "b"
-                  })`
-                )
-              : ""
-          }\n`
+    const isRepeated = (hit) => {
+      if (!maxSame || tcp) return false;
+      const sizeKey = `${hit.status}:${hit.size}`;
+      const shapeKey = `${hit.status}:${hit.words}:${hit.lines}`;
+      const bySize = (sizeCounts.get(sizeKey) ?? 0) + 1;
+      const byShape = (shapeCounts.get(shapeKey) ?? 0) + 1;
+      sizeCounts.set(sizeKey, bySize);
+      shapeCounts.set(shapeKey, byShape);
+      if (bySize <= maxSame && byShape <= maxSame) return false;
+      const group = bySize > maxSame ? sizeKey : shapeKey;
+      hiddenGroups.set(group, (hiddenGroups.get(group) ?? 0) + 1);
+      return true;
+    };
+
+    const show = (hit) => {
+      results++;
+      if (sink) {
+        sink.write(
+          jsonOutput
+            ? `${JSON.stringify(hit)}\n`
+            : `${tcp ? "tcp" : hit.status},"${hit.url.replaceAll('"', '""')}",${hit.size},${hit.words},${hit.lines}\n`
         );
-        updateBar();
-
-        if (outputFile) {
-          fs.appendFile(
-            outputFile,
-            `\n${result.status},"${result.url.replaceAll('"', '\\"')}",${
-              result.size
-            }`
-          );
-        }
-
-        resultsCount++;
       }
-    });
+      if (silent) {
+        out.write(`${hit.url}\n`);
+        return;
+      }
+      const tag = tcp ? ansis.blue("[TCP]") : statusColor(hit.status)(`[${hit.status}]`);
+      const details = tcp
+        ? ""
+        : ansis.gray(` (${formatSize(hit.size)}, ${hit.words}w, ${hit.lines}l${hit.redirect ? `, -> ${hit.redirect}` : ""})`);
+      clear();
+      out.write(`${tag} ${hit.url}${details}\n`);
+    };
 
-    worker.on("error", reject);
-    worker.on("exit", (code) => {
-      if (code !== 0)
-        reject(new Error(`Worker stopped with exit code ${code}`));
-    });
-  });
-}
+    const stop = (code) => {
+      if (stopped) return;
+      stopped = true;
+      clearInterval(ticker);
+      for (const worker of workers) worker.terminate();
+      clear();
+      sink?.end();
 
-async function distributeWork(wordlist) {
-  const chunkSize = Math.ceil(wordlist.length / threads);
-  const workers = [];
+      if (!silent) {
+        for (const [group, count] of hiddenGroups) {
+          const [status, first, second] = group.split(":");
+          const label = second === undefined ? `${status}, ${formatSize(Number(first))}` : `${status}, ${first} words, ${second} lines`;
+          err.write(`${ansis.gray(`hid ${count} more identical responses (${label})`)}\n`);
+        }
+      }
+      resolve({ results, hidden, failed, done, total, seconds: (performance.now() - started) / 1000, code });
+    };
 
-  for (let i = 0; i < threads; i++) {
-    const start = i * chunkSize;
-    const end = start + chunkSize;
-    const chunk = wordlist.slice(start, end);
+    const ticker = setInterval(render, 100);
 
-    if (chunk.length) {
-      workers.push(createWorker(targetURL, chunk));
+    process.once("SIGINT", () => stop(130));
+
+    for (let i = 0; i < threads; i++) {
+      const worker = new Worker(new URL("./worker.js", import.meta.url), {
+        workerData: { config, parallel },
+      });
+      workers.push(worker);
+
+      worker.on("message", (message) => {
+        if (message.type === "need") {
+          const batch = take();
+          worker.postMessage(batch.length ? { type: "batch", words: batch } : { type: "end" });
+          return;
+        }
+        if (message.type === "stats") {
+          done += message.done;
+          failed += message.failed;
+          for (const hit of message.hits) {
+            if (isRepeated(hit)) hidden++;
+            else show(hit);
+          }
+          return;
+        }
+        if (message.type === "done" && ++finished === threads) stop(0);
+      });
+
+      worker.on("error", (error) => {
+        if (stopped) return;
+        stopped = true;
+        clearInterval(ticker);
+        for (const other of workers) other.terminate();
+        reject(error);
+      });
     }
-  }
+  });
 
-  await Promise.all(workers);
-}
 program.addHelpText(
   "beforeAll",
   ansis.bold[color](` _                 _               _
@@ -194,253 +235,206 @@ program.addHelpText(
 program.configureOutput({
   outputError: (str, write) =>
     write(
-      ansis.red("error") +
-        ansis.gray(": ") +
-        ansis.bold(str) +
-        ansis.gray("(add --help for additional information)\n")
+      `${ansis.red("error")}${ansis.gray(": ")}${ansis.bold(str)}${ansis.gray("(add --help for additional information)\n")}`
     ),
 });
 
+const grayParens = (text) => text.replace(/\((.*?)\)/g, (_, content) => ansis.gray(`(${content})`));
+
 program.configureHelp({
-  subcommandTerm: (cmd) => {
-    const humanReadableArgName = (arg) => {
-      const nameOutput = arg.name() + (arg.variadic === true ? "..." : "");
-
-      return arg.required ? "<" + nameOutput + ">" : "[" + nameOutput + "]";
-    };
-
-    const args = cmd.registeredArguments
-      .map((arg) => humanReadableArgName(arg))
-      .join(" ");
-    const aliases = cmd.aliases();
-    return (
-      ansis.bold[color](cmd.name()) +
-      (aliases[0] ? "|" + aliases[0] : "") +
-      (cmd.options.length ? " [options]" : "") +
-      (args ? " " + args : "")
-    );
-  },
-  argumentTerm: (arg) => {
-    return ansis.bold[color](arg.name());
-  },
-  argumentDescription: (arg) => {
-    return arg.description.replace(/\((.*?)\)/g, (_, content) =>
-      ansis.gray("(" + content + ")")
-    );
-  },
-  optionTerm: (option) => {
-    return ansis.bold[color](option.flags);
-  },
-  optionDescription: (option) => {
-    return (
-      option.description.replace(/\((.*?)\)/g, (_, content) =>
-        ansis.gray("(" + content + ")")
-      ) +
-      (option.defaultValue
-        ? ansis.gray(` (default: ${option.defaultValue})`)
-        : "")
-    );
-  },
+  argumentTerm: (arg) => ansis.bold[color](arg.name()),
+  argumentDescription: (arg) => grayParens(arg.description),
+  optionTerm: (option) => ansis.bold[color](option.flags),
+  optionDescription: (option) =>
+    grayParens(option.description) +
+    (option.defaultValue ? ansis.gray(` (default: ${option.defaultValue})`) : ""),
 });
 
 program
   .name("bunbuster")
-  .description(
-    "Ridiculously fast web & TCP fuzzer designed for brute-forcing \ndirectories, subdomains, and files on web servers."
-  )
-  .version(__VERSION)
+  .description("Ridiculously fast web & TCP fuzzer designed for brute-forcing \ndirectories, subdomains, and files on web servers.")
+  .version(pkg.version)
   .argument("[url]", "target URL (use FUZZ as the placeholder)")
-  .option(
-    "-w, --wordlist <wordlist>",
-    "wordlist path (text file with one word per line)"
-  )
-  .option(
-    "-o, --opts <opts>",
-    "fetch request options in JSON (use FUZZ as a placeholder, if applicable)",
-    "{}"
-  )
-  .option(
-    "-c, --filtercodes <codes>",
-    "status codes to omit from results (split by a comma)",
-    "400,401,403,404,405"
-  )
-  .option(
-    "-t, --threads <threads>",
-    "number of threads/workers to use",
-    os.cpus().length
-  )
-  .option("-f, --filesize <size>", "filesize to filter out results", "0")
-  .option(
-    "--requests-per-minute <rpm>",
-    "maximum requests per minute",
-    "1000000"
-  )
-  .option(
-    "--output-file <output>",
-    "file where results will be stored",
-    ""
-  )
-  .option(
-    "-p, --parallel <number>",
-    "number of parallel requests to run when not ratelimiting",
-    "150"
-  )
-  .option(
-    "--verbose",
-    "uses Bun's verbose HTTP request logging, useful for debugging"
-  )
+  .option("-w, --wordlist <path>", "wordlist path, one word per line (use - for stdin)")
+  .option("-x, --extensions <list>", "extensions to try for every word (comma separated, e.g. .php,.bak)")
+  .option("-o, --opts <json>", "fetch request options in JSON (FUZZ works anywhere in it)", "{}")
+  .option("-H, --header <header>", "request header, can be repeated (e.g. \"Cookie: a=b\")", collect, [])
+  .option("-X, --method <method>", "HTTP method")
+  .option("-d, --data <body>", "request body")
+  .option("-c, --filtercodes <codes>", "status codes to omit from results", "400,401,403,404,405")
+  .option("--match-codes <codes>", "only show these status codes (overrides --filtercodes)")
+  .option("-f, --filesize <sizes>", "response sizes in bytes to omit (comma separated)")
+  .option("--filter-words <counts>", "word counts to omit (comma separated)")
+  .option("--filter-lines <counts>", "line counts to omit (comma separated)")
+  .option("--no-calibrate", "don't probe random paths to detect soft-404 pages up front")
+  .option("--max-same <n>", "hide further results once this many share the same response (0 disables)", "15")
+  .option("-t, --threads <threads>", "number of threads/workers to use", String(os.availableParallelism()))
+  .option("-p, --parallel <number>", "concurrent requests per thread", "64")
+  .option("--requests-per-minute <rpm>", "maximum requests per minute across all threads")
+  .option("--output-file <path>", "save results (.json/.jsonl for JSON lines, otherwise CSV)")
+  .option("--follow-redirects", "follow redirects instead of reporting them")
+  .option("-k, --insecure", "skip TLS certificate verification")
+  .option("--verbose", "uses Bun's verbose HTTP request logging, useful for debugging")
   .option("--proxy <proxy>", "uses a proxy")
-  .option(
-    "--spoofip",
-    "sets X-Forwarded-For and X-Real-IP headers with a random fake IP"
-  )
-  .option("--timeout <timeout>", "request timeout in milliseconds", "5000")
-  .option("--retries <retries>", "number of retries for a failed request", "4")
-  .option(
-    "--tcp <port>",
-    "if specified, uses a TCP connection on the port specified"
-  )
-  .option(
-    "--color <color>",
-    "default logging color (as in chalk/ansis color name)",
-    color
-  )
+  .option("--spoofip", "sets X-Forwarded-For and X-Real-IP headers with a random fake IP")
+  .option("--timeout <ms>", "request timeout in milliseconds", "5000")
+  .option("--retries <retries>", "attempts per request before it counts as failed", "4")
+  .option("--tcp <port>", "if specified, uses a TCP connection on the port specified")
+  .option("--silent", "only print matching URLs, no banner, progress or summary")
+  .option("--color <color>", "default logging color (as in chalk/ansis color name)", color)
   .action(async (url, options) => {
-    spoofip = options.spoofip || false;
-    targetURL = url;
-    wordlistPath = options.wordlist;
-    color = options.color || color;
-    filterCodes = options.filtercodes.split(",").map(Number);
-    threads = parseInt(options.threads, 10);
-    parallel = parseInt(options.parallel, 10);
-    filesizeFilter = parseInt(options.filesize, 10);
-    requestsPerMinute = Math.max(
-      Math.floor(parseInt(options.requestsPerMinute, 10) / threads),
-      1
-    );
-    outputFile = options.outputFile;
-    timeout = parseInt(options.timeout, 10);
-    retries = parseInt(options.retries, 10);
-    tcp = options.tcp && parseInt(options.tcp, 10);
-    proxy = options.proxy;
+    if (!url?.trim()) program.help();
 
-    if (!url?.trim()) {
-      program.help();
-    }
-    if (!tcp && !url.startsWith("http://") && !url.startsWith("https://")) {
-      program.error("Target URL must use http or https when using HTTP mode");
-    }
-    if (!URL.canParse(url) && !tcp) {
-      program.error("Invalid target URL");
-    }
-    if (tcp && (url.includes("https://") || url.includes("http://"))) {
-      program.error("TCP mode does not support http/https");
-    }
-    if (!options.wordlist) {
-      program.error(
-        "Wordlist required. Please provide it using the -w argument."
-      );
-    }
-    if (
-      (tcp && parseInt(options.tcp, 10) > 65535) ||
-      parseInt(options.tcp, 10) < 1
-    ) {
-      program.error("TCP port must be between 1 and 65535");
-    }
-    if (proxy && !URL.canParse(proxy)) {
-      program.error("Invalid proxy URL");
-    }
+    color = ansis[options.color] ? options.color : color;
+    const tcp = options.tcp ? Number.parseInt(options.tcp, 10) : 0;
+    const threadsWanted = Number.parseInt(options.threads, 10);
+    const parallel = Number.parseInt(options.parallel, 10);
+    const rpm = options.requestsPerMinute ? Number.parseInt(options.requestsPerMinute, 10) : 0;
 
-    if (outputFile) {
-      await fs.writeFile(outputFile, "code,url,size");
-    }
+    if (!options.wordlist) fail("Wordlist required. Please provide it using the -w argument.");
+    if (!tcp && !/^https?:\/\//.test(url)) fail("Target URL must use http or https when using HTTP mode");
+    if (!tcp && !URL.canParse(url.replaceAll("FUZZ", "x"))) fail("Invalid target URL");
+    if (tcp && /^https?:\/\//.test(url)) fail("TCP mode does not support http/https");
+    if (options.tcp && !(tcp >= 1 && tcp <= 65535)) fail("TCP port must be between 1 and 65535");
+    if (options.proxy && !URL.canParse(options.proxy)) fail("Invalid proxy URL");
+    if (!(threadsWanted >= 1) || !(parallel >= 1)) fail("Threads and parallel must be positive numbers");
+    if (options.requestsPerMinute && !(rpm >= 1)) fail("Requests per minute must be a positive number");
 
+    let opts;
     try {
       opts = JSON.parse(options.opts);
     } catch {
-      program.error("Unable to parse options");
-    }
-    if (options.verbose) {
-      opts.verbose = true;
-    }
-    if (options.proxy) {
-      opts.proxy = options.proxy;
+      fail("Unable to parse options");
     }
 
-    if (
-      !tcp &&
-      !targetURL.includes("FUZZ") &&
-      !JSON.stringify(opts).includes("FUZZ")
-    ) {
-      program.error("FUZZ placeholder not found in URL or options");
+    if (options.method) opts.method = options.method.toUpperCase();
+    if (options.data !== undefined) opts.body = options.data;
+    if (options.header.length) {
+      opts.headers = { ...opts.headers };
+      for (const header of options.header) {
+        const split = header.indexOf(":");
+        if (split < 1) fail(`Invalid header: ${header}`);
+        opts.headers[header.slice(0, split).trim()] = header.slice(split + 1).trim();
+      }
     }
+    if (options.verbose) opts.verbose = true;
+    if (options.proxy) opts.proxy = options.proxy;
+
+    if (!tcp && !url.includes("FUZZ") && !JSON.stringify(opts).includes("FUZZ")) {
+      fail("FUZZ placeholder not found in URL or options");
+    }
+
+    const extensions = list(options.extensions ?? "").map((ext) => (ext.startsWith(".") ? ext : `.${ext}`));
+    const words = await readWordlist(options.wordlist);
+    if (!words.length) fail("Wordlist is empty");
+
+    const total = words.length * (extensions.length + 1);
+    const threads = Math.max(1, Math.min(threadsWanted, Math.ceil(total / 100)));
+    const batchSize = Math.max(8, Math.min(500, Math.ceil(total / (threads * 4))));
+    const maxSame = Math.max(0, Number.parseInt(options.maxSame, 10) || 0);
+    const filterCodes = options.matchCodes ? [] : numbers(options.filtercodes, "status code");
+
+    const config = {
+      url,
+      opts,
+      tcp,
+      timeout: Number.parseInt(options.timeout, 10),
+      retries: Math.max(1, Number.parseInt(options.retries, 10)),
+      spoofip: Boolean(options.spoofip),
+      followRedirects: Boolean(options.followRedirects),
+      insecure: Boolean(options.insecure),
+      filterCodes,
+      matchCodes: options.matchCodes ? numbers(options.matchCodes, "status code") : [],
+      filterSizes: options.filesize ? numbers(options.filesize, "size") : [],
+      filterWords: options.filterWords ? numbers(options.filterWords, "word count") : [],
+      filterLines: options.filterLines ? numbers(options.filterLines, "line count") : [],
+      signatures: [],
+      interval: rpm ? (60000 * threads) / rpm : 0,
+    };
+
+    const silent = Boolean(options.silent);
+    const log = (text) => {
+      if (!silent) err.write(`${text}\n`);
+    };
 
     try {
-      workerBlobUrl = URL.createObjectURL(
-        new Blob([await fs.readFile("./src/worker.js", "utf-8")], {
-          type: "application/javascript",
-        })
-      );
-
-      wordlist = await readWordlist(wordlistPath);
-      progress = 0;
-
-      console.log(
+      log(
         ansis.gray(
-          `${tcp ? "TCP" : opts?.method?.toUpperCase() || "GET"} ${
-            tcp
-              ? targetURL.replaceAll("FUZZ", ansis.bold("FUZZ")) + ":" + tcp
-              : targetURL.replaceAll("FUZZ", ansis.bold("FUZZ"))
-          } (${wordlist.length} words)\n`
+          `${tcp ? "TCP" : opts.method || "GET"} ${url.replaceAll("FUZZ", ansis.bold("FUZZ"))}${tcp ? `:${tcp}` : ""} (${words.length} words${
+            extensions.length ? `, ${extensions.length} extensions` : ""
+          }, ${threads} threads)`
         )
       );
 
-      const start = process.hrtime();
-      await distributeWork(wordlist);
+      if (!tcp && options.calibrate) {
+        const found = await calibrate(config, extensions);
+        const visible = found.filter(
+          (sig) => !(config.matchCodes.length ? !config.matchCodes.includes(sig.status) : filterCodes.includes(sig.status))
+        );
+        config.signatures = found;
+        if (visible.length) {
+          log(
+            ansis.gray(
+              `soft-404 detected, hiding ${visible.map((sig) => `${sig.status} (${formatSize(sig.size)})`).join(", ")}`
+            )
+          );
+        }
+      }
+      log("");
 
-      const [seconds, nanoseconds] = process.hrtime(start);
-      const milliseconds = seconds * 1000 + nanoseconds / 1e6;
+      const summary = await runScan({
+        config,
+        words,
+        extensions,
+        threads,
+        parallel,
+        batchSize,
+        tcp,
+        maxSame,
+        outputFile: options.outputFile,
+        silent,
+      });
 
-      clearLine();
-      process.stdout.write(
-        `\n${
-          !resultsCount
-            ? ansis.bold.red("No results found")
-            : ansis.bold(
-                `${resultsCount} result${resultsCount === 1 ? "" : "s"} found`
-              )
-        }\nFuzzing complete ${ansis.gray(
-          `in ${(milliseconds / 1000).toFixed(2)}s`
-        )}\n`
-      );
+      if (!silent) {
+        out.write(
+          `\n${
+            summary.results
+              ? ansis.bold(`${summary.results} result${summary.results === 1 ? "" : "s"} found`)
+              : ansis.bold.red("No results found")
+          }${summary.hidden ? ansis.gray(` (${summary.hidden} repeated hidden)`) : ""}\n${
+            summary.failed ? `${ansis.yellow(`${summary.failed} requests failed`)}\n` : ""
+          }${summary.code === 130 ? "Interrupted" : "Fuzzing complete"} ${ansis.gray(
+            `in ${summary.seconds.toFixed(2)}s, ${Math.round(summary.done / summary.seconds)} req/s`
+          )}\n`
+        );
+      }
+      process.exit(summary.code);
     } catch (e) {
-      const os = require("os");
-      const logfile = os.tmpdir() + "/BUNBUSTER_CRASH.log";
+      const logfile = `${os.tmpdir()}/BUNBUSTER_CRASH.log`;
 
-      fs.writeFile(logfile, JSON.stringify({
-        err: e.message,
-        stack: e.stack,
-        bunv: process.versions.bun,
-        args: process.argv,
-        os: {
-          platform: os.platform() + " " + os.release() + " (" + os.arch() + ")",
-          cpu: os.cpus()[0].model,
-          mem: os.freemem() + "/" + os.totalmem()
-        },
-      }));
+      fs.writeFileSync(
+        logfile,
+        JSON.stringify({
+          err: e.message,
+          stack: e.stack,
+          bunv: process.versions.bun,
+          args: process.argv,
+          os: {
+            platform: `${os.platform()} ${os.release()} (${os.arch()})`,
+            cpu: os.cpus()[0]?.model,
+            mem: `${os.freemem()}/${os.totalmem()}`,
+          },
+        })
+      );
 
       console.error(
-        ansis.red("error") + ansis.gray(":"),
+        `${ansis.red("error")}${ansis.gray(":")}`,
         e,
         `
 ${ansis.gray("┌───────────────────────────────────────┐")}
 ${ansis.gray("│")}                                       ${ansis.gray("│")}
-${ansis.gray("│")}      ${ansis.bold(
-          "Please report this crash:"
-        )}        ${ansis.gray("│")}
-${ansis.gray("│")}       ${ansis.red.bold(
-          "https://git.new/bcrash"
-        )}          ${ansis.gray("│")}
+${ansis.gray("│")}      ${ansis.bold("Please report this crash:")}        ${ansis.gray("│")}
+${ansis.gray("│")}       ${ansis.red.bold("https://git.new/bcrash")}          ${ansis.gray("│")}
 ${ansis.gray("│")}                                       ${ansis.gray("│")}
 ${ansis.gray("└───────────────────────────────────────┘")}
 
@@ -448,12 +442,11 @@ Please run the following command and paste the
 results to your issue, it will help us diagnose
 your problem significantly faster:
 
-${ansis.gray("$")} cat ${ansis.bold(os.tmpdir())}${ansis.bold("/BUNBUSTER_CRASH.log")}
+${ansis.gray("$")} cat ${ansis.bold(logfile)}
 `
       );
+      process.exit(1);
     }
-
-    process.exit();
   });
 
 program.parse(process.argv);
